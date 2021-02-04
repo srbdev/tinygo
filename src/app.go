@@ -10,13 +10,20 @@ import (
 
 func HeartbeatHandler(w http.ResponseWriter, r *http.Request) {
 	log.Print("/api/heartbeat")
-	w.Write([]byte("OK"))
+	w.WriteHeader(http.StatusOK)
+}
+
+func UrlHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	log.Print("/", vars["key"])
+	w.WriteHeader(http.StatusOK)
 }
 
 func main() {
 	router := mux.NewRouter()
 	// Routes  consist of a path and a handler function.
 	router.HandleFunc("/api/heartbeat", HeartbeatHandler)
+	router.HandleFunc("/{key}", UrlHandler)
 
 	srv := &http.Server{
 		Handler: router,
@@ -27,6 +34,6 @@ func main() {
 	}
 
 	// Bind to a port and pass our router in
-	log.Print("tinygo live on :8080...")
+	log.Print("tinygo live on :8080!")
 	log.Fatal(srv.ListenAndServe())
 }
