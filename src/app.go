@@ -1,29 +1,33 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
-func HeartbeatHandler(w http.ResponseWriter, r *http.Request) {
-	log.Print("/api/heartbeat")
-	w.WriteHeader(http.StatusOK)
+type SubmittedUrl struct {
+	Url string `json:"url"`
 }
 
-func UrlHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	log.Print("/", vars["key"])
-	w.WriteHeader(http.StatusOK)
+type TinyUrl struct {
+	Key string `json:"key"`
+	Url string `json:"url"`
 }
+
+var urlCache = make(map[string]TinyUrl)
 
 func main() {
 	router := mux.NewRouter()
 	// Routes  consist of a path and a handler function.
-	router.HandleFunc("/api/heartbeat", HeartbeatHandler)
-	router.HandleFunc("/{key}", UrlHandler)
+	router.Path("/api/heartbeat").Methods(http.MethodGet).HandlerFunc(HeartbeatHandler)
+	router.Path("/{key}").Methods(http.MethodGet).HandlerFunc(UrlHandler)
+
+	router.Path("/new").Methods(http.MethodPost).HandlerFunc(CreateTinyUrl)
 
 	srv := &http.Server{
 		Handler: router,
@@ -34,6 +38,52 @@ func main() {
 	}
 
 	// Bind to a port and pass our router in
-	log.Print("tinygo live on :8080!")
 	log.Fatal(srv.ListenAndServe())
+}
+
+func HeartbeatHandler(w http.ResponseWriter, r *http.Request) {
+	log.Print("/api/heartbeat")
+	w.WriteHeader(http.StatusOK)
+}
+
+func CreateTinyUrl(w http.ResponseWriter, r *http.Request) {
+	u := SubmittedUrl{}
+	err := json.NewDecoder(r.Body).Decode(&u)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Converts key to string and grab the first 8 characters
+	key := uuid.New().String()[:8]
+
+	// TODO function to generate key
+	// TODO function to check for collision
+
+	tiny := TinyUrl{Key: key, Url: u.Url}
+	resp, err := json.Marshal(&tiny)
+	if err != nil {
+		log.Print(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	urlCache[key] = tiny
+
+	log.Print("/new, ", u.Url, ", ", key)
+	w.WriteHeader(http.StatusCreated)
+	w.Write(resp)
+}
+
+func UrlHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	tiny, prs := urlCache[vars["key"]]
+	if prs == true {
+		log.Print("/", vars["key"], ", ", tiny.Url)
+		http.Redirect(w, r, tiny.Url, http.StatusSeeOther)
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+	}
+
 }
