@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type SubmittedUrl struct {
+type LongUrl struct {
 	Url string `json:"url"`
 }
 
@@ -46,20 +46,28 @@ func HeartbeatHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func GetUuid() string {
+	for {
+		// Converts key to string and grab the first 8 characters
+		// TODO find a better way!
+		key := uuid.New().String()[:8]
+		_, prs := urlCache[key]
+		// prs checks for collision if already in cache
+		if !prs {
+			return key
+		}
+	}
+}
+
 func CreateTinyUrl(w http.ResponseWriter, r *http.Request) {
-	u := SubmittedUrl{}
+	u := LongUrl{}
 	err := json.NewDecoder(r.Body).Decode(&u)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	// Converts key to string and grab the first 8 characters
-	key := uuid.New().String()[:8]
-
-	// TODO function to generate key
-	// TODO function to check for collision
-
+	key := GetUuid()
 	tiny := TinyUrl{Key: key, Url: u.Url}
 	resp, err := json.Marshal(&tiny)
 	if err != nil {
